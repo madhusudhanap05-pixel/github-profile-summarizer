@@ -2,42 +2,36 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# 1. Define build arguments to accept values from the 'docker build' command
+# Install build dependencies (needed for native modules)
+RUN apk add --no-cache python3 make g++
+
+# Build arguments
 ARG VITE_GITHUB_TOKEN
 ARG VITE_MAX_REPOS=50
 
-# 2. Set the arguments as environment variables for the build process.
-# This is CRUCIAL for Vite to pick them up during 'npm run build'.
+# Environment variables for Vite
 ENV VITE_GITHUB_TOKEN=$VITE_GITHUB_TOKEN
 ENV VITE_MAX_REPOS=$VITE_MAX_REPOS
 
-
 # Install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-
-# Copy app source and build
+# Copy source and build
 COPY . .
-# 'npm run build' will now embed the token value into the final JavaScript bundle
 RUN npm run build
 
-
 # ---------- Stage 2: Serve with Nginx ----------
-FROM nginx:alpine
-
+FROM nginx:stable-alpine
 
 # Remove default Nginx static files
 RUN rm -rf /usr/share/nginx/html/*
 
-
-# Copy built app from build stage
+# Copy built app
 COPY --from=build /app/dist /usr/share/nginx/html
-
 
 # Custom Nginx config for SPA routing
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
